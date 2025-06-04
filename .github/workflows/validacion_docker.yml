@@ -1,44 +1,55 @@
 # .github/workflows/validacion_docker.yml
 name: Docker Build Validation Pipeline for validacion_docker
 
-# ... (la sección 'on:' y la definición del 'job' y 'env' permanecen igual) ...
+# ---- SECCIÓN 'on:' ----
+# Define cuándo se ejecuta el workflow
+on:
+  push:
+    branches: [ main ] # Se ejecuta en cada push a la rama 'main' (o la que uses)
+  pull_request:
+    branches: [ main ] # Se ejecuta en cada pull request a la rama 'main' (o la que uses)
+# ---- FIN SECCIÓN 'on:' ----
 
 jobs:
-  validate_docker_setup:
+  validate_docker_setup: # Nombre del job enfocado en la validación
     name: Validate Docker Setup and Build
     runs-on: ubuntu-latest
-    env:
+    env: # Variables de entorno específicas para este job
       GIT_SHA: ${{ github.sha }}
+      # El DOCKERHUB_USERNAME se define a partir del secret.
+      # Su valor DEBE ser 'itzel-9' si ese es tu usuario de Docker Hub.
       DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      # ... (tus pasos de Lint Dockerfile, Set up QEMU, Set up Docker Buildx) ...
+      # No hay pasos de Python aquí porque el Dockerfile de ejemplo actual no ejecuta una app Python.
+      # Si fuera tu app Flask, aquí irían los pasos de setup-python, pip install, pytest.
 
       - name: Lint Dockerfile
         uses: hadolint/hadolint-action@v3.1.0
         with:
           dockerfile: ./Dockerfile
-          failure-threshold: warning
+          failure-threshold: warning # Falla si hay advertencias o errores
+          # Para ignorar reglas específicas de Hadolint, si es necesario:
+          # ignore: DL3018,DL3025
 
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
 
       - name: Set up Docker Buildx
-        id: buildx
+        id: buildx # ID para referenciar salidas de Buildx si es necesario
         uses: docker/setup-buildx-action@v3
 
       # --- PASO DE LOGIN EXPLÍCITO PARA DEPURACIÓN ---
       - name: Login to Docker Hub (Debug)
         # Ejecutar solo si se va a intentar hacer push, para no loguearse innecesariamente.
-        # Esto coincide con la condición del paso de build-push-action.
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         uses: docker/login-action@v3
         with:
-          username: ${{ secrets.DOCKERHUB_USERNAME }} # Usa el secret para el nombre de usuario
-          password: ${{ secrets.DOCKERHUB_TOKEN }}    # Usa el secret para el token (contraseña)
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
       # --- FIN DEL PASO DE LOGIN EXPLÍCITO ---
 
       - name: Validate build and (conditionally) push with docker/build-push-action
@@ -46,24 +57,28 @@ jobs:
         with:
           context: .
           file: ./Dockerfile
+          # La acción hace push solo si la condición es verdadera (push a main)
           push: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+          # Etiquetas para la imagen: 'itzel-9' como usuario, 'validacion_docker' como nombre del repo de imagen.
           tags: |
             itzel-9/validacion_docker:${{ env.GIT_SHA }}
             itzel-9/validacion_docker:latest
-          # La sección 'secrets:' en build-push-action es una forma alternativa de pasar credenciales,
-          # pero si el login-action anterior funciona, esta sección podría ser redundante o
-          # incluso causar conflicto si ambos intentan manejar el login de forma diferente.
-          # Para depurar, puedes comentar temporalmente la sección 'secrets:' de build-push-action
-          # si estás usando el login-action explícito.
-          # secrets: |
-          #   GIT_AUTH_TOKEN=${{ secrets.DOCKERHUB_TOKEN }}
+          # Si el paso de login-action anterior es exitoso, esta sección de 'secrets'
+          # en build-push-action podría ser redundante. Puedes probar comentándola
+          # si el login-action explícito funciona.
+          secrets: |
+            GIT_AUTH_TOKEN=${{ secrets.DOCKERHUB_TOKEN }}
 
-      # ... (tu paso de Validate build with docker/bake-action) ...
       - name: Validate build with docker/bake-action
+        # Considera una condición if para ejecutar solo si docker-bake.hcl existe:
+        # if: hashFiles('docker-bake.hcl')
         uses: docker/bake-action@v4
         with:
-          push: false
+          push: false # Este paso solo valida la construcción con Bake, no hace push
           files: |
             ./docker-bake.hcl
+          # Si docker-bake.hcl necesita generar etiquetas con 'itzel-9/',
+          # puedes pasarlo a través de 'set' o asegurar que Bake acceda
+          # a una variable de entorno DOCKERHUB_USERNAME si defines una.
           # set: |
           #   app-check.tags=itzel-9/mi-app-bake-check:${{ env.GIT_SHA }}
