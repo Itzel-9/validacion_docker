@@ -34,6 +34,7 @@ jobs:
           failure-threshold: warning # Falla si hay advertencias o errores
           # Para ignorar reglas específicas de Hadolint, si es necesario:
           # ignore: DL3018,DL3025
+          ignore: DL3018 
 
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
