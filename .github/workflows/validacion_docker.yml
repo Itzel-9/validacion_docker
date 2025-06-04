@@ -1,11 +1,7 @@
 # .github/workflows/validacion_docker.yml
 name: Docker Build Validation Pipeline for validacion_docker
 
-on:
-  push:
-    branches: [ main ] # O la rama principal que uses
-  pull_request:
-    branches: [ main ] # O la rama principal que uses
+# ... (la sección 'on:' y la definición del 'job' y 'env' permanecen igual) ...
 
 jobs:
   validate_docker_setup:
@@ -13,23 +9,19 @@ jobs:
     runs-on: ubuntu-latest
     env:
       GIT_SHA: ${{ github.sha }}
-      # El DOCKERHUB_USERNAME debe ser 'itzel-9'.
-      # Este valor se obtiene del secret de GitHub.
       DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      # No hay pasos de Python aquí porque el Dockerfile de ejemplo no ejecuta una app Python.
+      # ... (tus pasos de Lint Dockerfile, Set up QEMU, Set up Docker Buildx) ...
 
       - name: Lint Dockerfile
         uses: hadolint/hadolint-action@v3.1.0
         with:
           dockerfile: ./Dockerfile
           failure-threshold: warning
-          # Añade la siguiente línea para ignorar reglas específicas:
-          ignore: DL3018,DL3025 # Separa los códigos de las reglas con comas
 
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
@@ -38,25 +30,40 @@ jobs:
         id: buildx
         uses: docker/setup-buildx-action@v3
 
+      # --- PASO DE LOGIN EXPLÍCITO PARA DEPURACIÓN ---
+      - name: Login to Docker Hub (Debug)
+        # Ejecutar solo si se va a intentar hacer push, para no loguearse innecesariamente.
+        # Esto coincide con la condición del paso de build-push-action.
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }} # Usa el secret para el nombre de usuario
+          password: ${{ secrets.DOCKERHUB_TOKEN }}    # Usa el secret para el token (contraseña)
+      # --- FIN DEL PASO DE LOGIN EXPLÍCITO ---
+
       - name: Validate build and (conditionally) push with docker/build-push-action
         uses: docker/build-push-action@v5
         with:
           context: .
           file: ./Dockerfile
           push: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
-          # Etiquetas para la imagen usando 'itzel-9' directamente
           tags: |
             itzel-9/validacion_docker:${{ env.GIT_SHA }}
             itzel-9/validacion_docker:latest
-          secrets: |
-            GIT_AUTH_TOKEN=${{ secrets.DOCKERHUB_TOKEN }}
+          # La sección 'secrets:' en build-push-action es una forma alternativa de pasar credenciales,
+          # pero si el login-action anterior funciona, esta sección podría ser redundante o
+          # incluso causar conflicto si ambos intentan manejar el login de forma diferente.
+          # Para depurar, puedes comentar temporalmente la sección 'secrets:' de build-push-action
+          # si estás usando el login-action explícito.
+          # secrets: |
+          #   GIT_AUTH_TOKEN=${{ secrets.DOCKERHUB_TOKEN }}
 
+      # ... (tu paso de Validate build with docker/bake-action) ...
       - name: Validate build with docker/bake-action
         uses: docker/bake-action@v4
         with:
           push: false
           files: |
             ./docker-bake.hcl
-          # Si el target 'app-check' en Bake necesitara generar etiquetas con 'itzel-9':
           # set: |
-          #   app-check.tags=itzel-9/mi-app-bake-check:${{ env.GIT_SHA }}  
+          #   app-check.tags=itzel-9/mi-app-bake-check:${{ env.GIT_SHA }}
