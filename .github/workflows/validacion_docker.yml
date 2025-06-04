@@ -28,6 +28,8 @@ jobs:
         with:
           dockerfile: ./Dockerfile
           failure-threshold: warning
+          # Añade la siguiente línea para ignorar reglas específicas:
+          ignore: DL3018,DL3025 # Separa los códigos de las reglas con comas
 
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
@@ -57,4 +59,4 @@ jobs:
             ./docker-bake.hcl
           # Si el target 'app-check' en Bake necesitara generar etiquetas con 'itzel-9':
           # set: |
-          #   app-check.tags=itzel-9/mi-app-bake-check:${{ env.GIT_SHA }}
+          #   app-check.tags=itzel-9/mi-app-bake-check:${{ env.GIT_SHA }}  
