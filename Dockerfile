@@ -1,5 +1,5 @@
 # Dockerfile
-FROM alpine:3.18 # Solución para DL3007
+FROM alpine:3.19
 
 # Solución para DL3018 - Opción 1: Fijar versión de tini (ejemplo, verifica la versión actual)
 # RUN apk add --no-cache tini=0.19.0
