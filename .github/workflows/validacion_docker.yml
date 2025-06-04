@@ -13,17 +13,15 @@ jobs:
     runs-on: ubuntu-latest
     env:
       GIT_SHA: ${{ github.sha }}
-      # El DOCKERHUB_USERNAME aquí es para el login de docker/build-push-action.
-      # Su valor DEBE ser 'itzel9' si ese es tu usuario.
-      # Lo obtenemos del secret de GitHub para mantener las buenas prácticas.
-      DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }} # Asegúrate que este secret en GitHub tenga el valor 'itzel9'
+      # El DOCKERHUB_USERNAME debe ser 'itzel-9'.
+      # Este valor se obtiene del secret de GitHub.
+      DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
       # No hay pasos de Python aquí porque el Dockerfile de ejemplo no ejecuta una app Python.
-      # Si fuera tu app Flask, aquí irían los pasos de setup-python, pip install, pytest.
 
       - name: Lint Dockerfile
         uses: hadolint/hadolint-action@v3.1.0
@@ -43,23 +41,20 @@ jobs:
         with:
           context: .
           file: ./Dockerfile
-          # Push solo si es un evento 'push' a la rama 'main'
           push: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
-          # Etiquetas para la imagen: 'itzel9' como usuario, 'validacion_docker' como nombre del repo de imagen.
+          # Etiquetas para la imagen usando 'itzel-9' directamente
           tags: |
-            itzel9/validacion_docker:${{ env.GIT_SHA }}
-            itzel9/validacion_docker:latest
-          # El token es esencial para el push.
-          # La acción usa DOCKERHUB_USERNAME (del env, que viene del secret) y este token para autenticarse.
+            itzel-9/validacion_docker:${{ env.GIT_SHA }}
+            itzel-9/validacion_docker:latest
           secrets: |
             GIT_AUTH_TOKEN=${{ secrets.DOCKERHUB_TOKEN }}
 
       - name: Validate build with docker/bake-action
-        # if: hashFiles('docker-bake.hcl') # Descomenta si el archivo es opcional
         uses: docker/bake-action@v4
         with:
-          push: false # Este paso solo valida la construcción con Bake, no hace push
+          push: false
           files: |
             ./docker-bake.hcl
-          # El target "app-check" en docker-bake.hcl usa GIT_SHA para sus etiquetas locales.
-          # No necesita DOCKERHUB_USERNAME para el target app-check porque no hace push.
+          # Si el target 'app-check' en Bake necesitara generar etiquetas con 'itzel-9':
+          # set: |
+          #   app-check.tags=itzel-9/mi-app-bake-check:${{ env.GIT_SHA }}
